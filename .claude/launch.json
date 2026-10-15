@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "front-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "export PATH=/run/host/usr/bin:$PATH LD_LIBRARY_PATH=/run/host/usr/lib64:/run/host/usr/lib; exec node node_modules/vite/bin/vite.js --port 5173 --strictPort"],
+      "port": 5173
+    }
+  ]
+}
