@@ -1,18 +1,27 @@
 /* ---------- Tokens ---------- */
+/* Identidade visual (F4.5): roxo amostrado do logo (#482583), lilás para fundos,
+   magenta só em destaques e na série "saídas" — nunca em alertas, que usam
+   verde/âmbar/vermelho independentes da marca. */
 :root {
   color-scheme: light;
-  --bg: #f6f5f2;
-  --surface: #ffffff;
-  --surface-2: #f0efeb;
-  --border: #e2e0da;
-  --border-strong: #c9c6bd;
-  --text: #1c1b19;
-  --text-2: #55534e;
-  --text-3: #7a7871;
+  --cor-primaria: #482583; /* contraste com branco ≈ 11:1 */
+  --cor-primaria-escura: #361b63;
+  --cor-primaria-clara: #e9e2f3;
+  --cor-destaque: #b5177b; /* magenta/rosa */
+  --cor-neutra: #e4e1ea;
 
-  --accent: #1f6f8b;
-  --accent-hover: #185a71;
-  --accent-bg: #e3f0f4;
+  --bg: #f7f6fa;
+  --surface: #ffffff;
+  --surface-2: #f1eff5;
+  --border: var(--cor-neutra);
+  --border-strong: #c8c3d2;
+  --text: #1d1a24; /* quase preto */
+  --text-2: #4f4a5a;
+  --text-3: #6c6777;
+
+  --accent: var(--cor-primaria);
+  --accent-hover: var(--cor-primaria-escura);
+  --accent-bg: var(--cor-primaria-clara);
   --on-accent: #ffffff;
 
   --ok: #1d7a46;
@@ -22,16 +31,21 @@
   --danger: #b42318;
   --danger-bg: #fdebe9;
 
-  /* Séries do gráfico (paleta categórica validada: slots 1 e 2) */
-  --series-entrada: #2a78d6;
-  --series-saida: #eb6834;
+  --series-entrada: var(--cor-primaria);
+  --series-saida: var(--cor-destaque);
+
+  --header-bg: var(--cor-primaria);
+  --header-text: #ffffff;
+  --header-text-2: #d9cdee;
+  --header-hover: rgb(255 255 255 / 0.12);
 
   --radius: 10px;
   --radius-sm: 6px;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.04);
+  --shadow: 0 1px 2px rgb(30 10 60 / 0.06), 0 4px 12px rgb(30 10 60 / 0.05);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Montserrat', system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --tracking: 0.06em;
 
   font: 16px/1.5 var(--sans);
   color: var(--text);
@@ -42,51 +56,51 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #141413;
-    --surface: #1d1d1b;
-    --surface-2: #262624;
-    --border: #33332f;
-    --border-strong: #4a4a45;
-    --text: #f2f1ec;
-    --text-2: #c3c2b7;
-    --text-3: #918f86;
-    --accent: #5fb3cf;
-    --accent-hover: #7cc4dc;
-    --accent-bg: #1b3640;
-    --on-accent: #0d1a1f;
+    --cor-primaria: #b9a1e8;
+    --cor-primaria-escura: #cdbbf0;
+    --cor-primaria-clara: #2c2142;
+    --cor-destaque: #f06bb7;
+    --cor-neutra: #34303d;
+    --bg: #141217;
+    --surface: #1d1a22;
+    --surface-2: #26222d;
+    --border-strong: #4b4555;
+    --text: #f2f0f6;
+    --text-2: #c6c1d0;
+    --text-3: #9a94a6;
+    --on-accent: #1b1029;
     --ok: #5cc98a;
     --ok-bg: #173323;
     --warn: #f0b546;
     --warn-bg: #3a2c10;
     --danger: #f2756a;
     --danger-bg: #3d1a17;
-    --series-entrada: #3987e5;
-    --series-saida: #d95926;
+    --header-bg: #2a1650;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
   }
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #141413;
-  --surface: #1d1d1b;
-  --surface-2: #262624;
-  --border: #33332f;
-  --border-strong: #4a4a45;
-  --text: #f2f1ec;
-  --text-2: #c3c2b7;
-  --text-3: #918f86;
-  --accent: #5fb3cf;
-  --accent-hover: #7cc4dc;
-  --accent-bg: #1b3640;
-  --on-accent: #0d1a1f;
+  --cor-primaria: #b9a1e8;
+  --cor-primaria-escura: #cdbbf0;
+  --cor-primaria-clara: #2c2142;
+  --cor-destaque: #f06bb7;
+  --cor-neutra: #34303d;
+  --bg: #141217;
+  --surface: #1d1a22;
+  --surface-2: #26222d;
+  --border-strong: #4b4555;
+  --text: #f2f0f6;
+  --text-2: #c6c1d0;
+  --text-3: #9a94a6;
+  --on-accent: #1b1029;
   --ok: #5cc98a;
   --ok-bg: #173323;
   --warn: #f0b546;
   --warn-bg: #3a2c10;
   --danger: #f2756a;
   --danger-bg: #3d1a17;
-  --series-entrada: #3987e5;
-  --series-saida: #d95926;
+  --header-bg: #2a1650;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
@@ -107,6 +121,13 @@ h3 {
   margin: 0;
   line-height: 1.25;
   color: var(--text);
+}
+h1,
+h2 {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking);
+  color: var(--cor-primaria);
 }
 h1 {
   font-size: 1.5rem;
@@ -142,7 +163,7 @@ code,
   color: var(--text-2);
 }
 .small {
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
 }
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -196,6 +217,8 @@ code,
 .field > span {
   font-size: 0.875rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking);
   color: var(--text-2);
 }
 .field .erro {
@@ -203,7 +226,7 @@ code,
   color: var(--danger);
 }
 .field .dica {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--text-3);
 }
 input,
@@ -257,6 +280,9 @@ input[type='radio'] {
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking);
+  font-size: 0.9375rem;
 }
 .btn:hover:not(:disabled) {
   background: var(--surface-2);
@@ -302,7 +328,7 @@ input[type='radio'] {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 th,
 td {
@@ -314,6 +340,8 @@ td {
 th {
   font-size: 0.8125rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking);
   color: var(--text-2);
   background: var(--surface-2);
   white-space: nowrap;
@@ -322,7 +350,7 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 tbody tr:hover {
-  background: var(--surface-2);
+  background: var(--cor-primaria-clara);
 }
 .acoes {
   display: flex;
@@ -335,7 +363,7 @@ tbody tr:hover {
   padding: 12px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid;
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 .alert-warn {
   background: var(--warn-bg);

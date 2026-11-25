@@ -98,14 +98,15 @@ const produtoSelecionado = computed(() => produtos.value.find((p) => p.id === pr
             <th>Produto</th>
             <th class="num">Quantidade</th>
             <th>Observação</th>
+            <th>Registrado por</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="carregando">
-            <td colspan="5" class="vazio">Carregando…</td>
+            <td colspan="6" class="vazio">Carregando…</td>
           </tr>
           <tr v-else-if="!movs.length">
-            <td colspan="5" class="vazio">Nenhuma movimentação encontrada.</td>
+            <td colspan="6" class="vazio">Nenhuma movimentação encontrada.</td>
           </tr>
           <tr v-for="m in movs" v-else :key="m.id">
             <td class="mono small">{{ formatarDataHora(m.created_at) }}</td>
@@ -113,6 +114,7 @@ const produtoSelecionado = computed(() => produtos.value.find((p) => p.id === pr
             <td>{{ m.produto_nome }}</td>
             <td class="num">{{ formatarDelta(m.quantidade) }}</td>
             <td class="muted">{{ m.observacao ?? '' }}</td>
+            <td class="muted">{{ m.usuario_nome ?? '—' }}</td>
           </tr>
         </tbody>
       </table>

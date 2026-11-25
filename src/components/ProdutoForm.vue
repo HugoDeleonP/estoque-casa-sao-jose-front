@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { useCategorias } from '@/composables/useCategorias'
+import { useUnidades } from '@/composables/useUnidades'
 import type { Produto, ProdutoInput } from '@/types/api'
 import { codigoValido, normalizarCodigo } from '@/utils/codigoBarras'
 
@@ -18,14 +19,44 @@ const props = defineProps<{
 const emit = defineEmits<{ enviar: [dados: ProdutoInput]; cancelar: [] }>()
 
 const { categorias } = useCategorias()
+const { unidades } = useUnidades()
+
+// Lembra a última unidade usada: no cadastro por bip o voluntário só digita o número
+const CHAVE_UNIDADE = 'csj.ultima-unidade'
+function ultimaUnidade(): number {
+  try {
+    return Number(localStorage.getItem(CHAVE_UNIDADE)) || 0
+  } catch {
+    return 0
+  }
+}
 
 const form = reactive({
   codigo_barras: props.inicial?.codigo_barras ?? '',
   nome: props.inicial?.nome ?? '',
   marca: props.inicial?.marca ?? '',
-  unidade: props.inicial?.unidade ?? '',
+  conteudo_valor: (props.inicial?.conteudo_valor ?? '') as number | '',
+  unidade_medida_id: props.inicial?.unidade_medida?.id ?? ultimaUnidade(),
   categoria_id: props.inicial?.categoria?.id ?? 0,
 })
+
+// Sem unidade lembrada (ou excluída): cai em "un" quando a lista chegar
+watch(
+  unidades,
+  (lista) => {
+    if (lista.length && !lista.some((u) => u.id === form.unidade_medida_id)) {
+      form.unidade_medida_id = lista.find((u) => u.sigla === 'un')?.id ?? lista[0]!.id
+    }
+  },
+  { immediate: true },
+)
+
+const GRUPO: Record<string, string> = { MASSA: 'Peso', VOLUME: 'Volume', CONTAGEM: 'Contagem' }
+const unidadesPorGrandeza = computed(() =>
+  Object.entries(GRUPO)
+    .map(([g, rotulo]) => ({ rotulo, itens: unidades.value.filter((u) => u.grandeza === g) }))
+    .filter((g) => g.itens.length),
+)
 const errosLocais = reactive<Record<string, string>>({})
 
 watch(
@@ -43,6 +74,11 @@ function enviar() {
   if (!codigo) errosLocais.codigo_barras = 'Informe o código de barras'
   else if (!codigoValido(codigo)) errosLocais.codigo_barras = 'Use apenas dígitos (8 a 14)'
   if (form.nome.trim().length < 2) errosLocais.nome = 'Informe ao menos 2 caracteres'
+  // D5: conteúdo obrigatório e maior que zero
+  if (form.conteudo_valor === '' || !(Number(form.conteudo_valor) > 0)) {
+    errosLocais.conteudo_valor = 'Informe quanto vem em cada embalagem (maior que zero)'
+  }
+  if (!form.unidade_medida_id) errosLocais.unidade_medida_id = 'Selecione a unidade'
   if (!form.categoria_id) errosLocais.categoria_id = 'Selecione uma categoria'
   if (Object.keys(errosLocais).length) return
 
@@ -50,9 +86,15 @@ function enviar() {
     codigo_barras: codigo,
     nome: form.nome.trim(),
     marca: form.marca.trim() || null,
-    unidade: form.unidade.trim() || null,
+    conteudo_valor: Number(form.conteudo_valor),
+    unidade_medida_id: form.unidade_medida_id,
     categoria_id: form.categoria_id,
   })
+  try {
+    localStorage.setItem(CHAVE_UNIDADE, String(form.unidade_medida_id))
+  } catch {
+    // armazenamento indisponível: só não lembra a unidade
+  }
 }
 </script>
 
@@ -83,11 +125,34 @@ function enviar() {
       <input v-model="form.marca" maxlength="80" placeholder="Ex.: Camil" />
     </label>
 
-    <label class="field">
-      <span>Unidade</span>
-      <input v-model="form.unidade" maxlength="30" placeholder="Ex.: pacote 1 kg" />
-      <small class="dica">Descritivo. O estoque conta embalagens.</small>
-    </label>
+    <div class="field conteudo">
+      <span id="rotulo-conteudo">Conteúdo da embalagem *</span>
+      <div class="par" role="group" aria-labelledby="rotulo-conteudo">
+        <input
+          v-model.number="form.conteudo_valor"
+          type="number"
+          min="0"
+          step="any"
+          inputmode="decimal"
+          placeholder="Ex.: 5"
+          aria-label="Quantidade em cada embalagem"
+          :aria-invalid="!!errosLocais.conteudo_valor"
+        />
+        <select
+          v-model.number="form.unidade_medida_id"
+          aria-label="Unidade de medida"
+          :aria-invalid="!!errosLocais.unidade_medida_id"
+        >
+          <option :value="0" disabled>Unidade…</option>
+          <optgroup v-for="g in unidadesPorGrandeza" :key="g.rotulo" :label="g.rotulo">
+            <option v-for="u in g.itens" :key="u.id" :value="u.id">{{ u.sigla }} ({{ u.nome }})</option>
+          </optgroup>
+        </select>
+      </div>
+      <small v-if="errosLocais.conteudo_valor" class="erro">{{ errosLocais.conteudo_valor }}</small>
+      <small v-else-if="errosLocais.unidade_medida_id" class="erro">{{ errosLocais.unidade_medida_id }}</small>
+      <small v-else class="dica">Ex.: pacote de arroz = 5 kg. O estoque conta embalagens.</small>
+    </div>
 
     <label class="field">
       <span>Categoria *</span>
@@ -112,6 +177,11 @@ function enviar() {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px 16px;
+}
+.par {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 8px;
 }
 .botoes {
   grid-column: 1 / -1;

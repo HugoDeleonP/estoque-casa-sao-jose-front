@@ -15,6 +15,15 @@ export interface RequestOptions {
   signal?: AbortSignal
 }
 
+/**
+ * Chamado quando a API responde 401 (sessão ausente ou expirada) fora do login.
+ * O router registra aqui o redirecionamento para /login (F4.4).
+ */
+let aoPerderSessao: (() => void) | null = null
+export function definirAoPerderSessao(fn: () => void) {
+  aoPerderSessao = fn
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly campos: CampoInvalido[]
@@ -39,6 +48,12 @@ export class ApiError extends Error {
   get conflito() {
     return this.status === 409
   }
+  get naoAutenticado() {
+    return this.status === 401
+  }
+  get semPermissao() {
+    return this.status === 403
+  }
   get semConexao() {
     return this.status === 0
   }
@@ -61,12 +76,6 @@ function montarQuery(query: RequestOptions['query'] = {}): string {
 }
 
 export async function request<T>(endpoint: Endpoint, opts: RequestOptions = {}): Promise<T> {
-  if (env.useMock) {
-    // Import dinâmico: o mock não entra no bundle de produção
-    const { mockRequest } = await import('@/mocks/adapter')
-    return mockRequest<T>(endpoint, opts)
-  }
-
   const url = env.apiBaseUrl + montarCaminho(endpoint.path, opts.params) + montarQuery(opts.query)
   const timeout = AbortSignal.timeout(env.timeoutMs)
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout
@@ -78,7 +87,7 @@ export async function request<T>(endpoint: Endpoint, opts: RequestOptions = {}):
       headers: opts.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       signal,
-      // Pós-MVP (RF06): sessão via cookie HttpOnly — nada a mudar além disto
+      // Sessão em cookie HttpOnly assinado: o navegador envia sozinho (mesma origem)
       credentials: 'same-origin',
     })
   } catch (e) {
@@ -86,7 +95,7 @@ export async function request<T>(endpoint: Endpoint, opts: RequestOptions = {}):
       throw new ApiError(0, 'A API demorou demais para responder. Tente novamente.')
     }
     if (e instanceof DOMException && e.name === 'AbortError') throw e
-    throw new ApiError(0, 'Não foi possível conectar à API. Verifique se o servidor está ligado.')
+    throw new ApiError(0, 'Sem conexão com o servidor. Verifique a internet e tente de novo.')
   }
 
   if (resposta.status === 204) return undefined as T
@@ -94,6 +103,8 @@ export async function request<T>(endpoint: Endpoint, opts: RequestOptions = {}):
   const corpo: unknown = await resposta.json().catch(() => null)
   if (!resposta.ok) {
     const erro = corpo as Partial<ErroResposta> | null
+    // O próprio login e a checagem inicial (/auth/me) tratam o 401 por conta própria
+    if (resposta.status === 401 && !endpoint.path.startsWith('/auth/')) aoPerderSessao?.()
     throw new ApiError(
       resposta.status,
       erro?.mensagem ?? `Erro ${resposta.status} ao acessar a API`,

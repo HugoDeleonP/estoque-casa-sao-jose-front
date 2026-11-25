@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import ProdutoForm from '@/components/ProdutoForm.vue'
 import SaldoBadge from '@/components/SaldoBadge.vue'
 import TipoBadge from '@/components/TipoBadge.vue'
 import { ApiError } from '@/config'
+import { useAuth } from '@/composables/useAuth'
 import { useToast } from '@/composables/useToast'
 import { movimentacaoService, produtoService } from '@/services'
 import type { Produto, ProdutoExcluido, ProdutoInput } from '@/types/api'
@@ -33,6 +34,19 @@ interface RegistroSessao {
 }
 
 const toast = useToast()
+const { isAdmin } = useAuth()
+
+/** F4.2: leitura idêntica repetida em menos disto é bip duplo do leitor → descartada. */
+const JANELA_DUPLICADO_MS = 300
+let ultimaLeitura = { codigo: '', em: -Infinity }
+
+/** F4.3: falha visível até a próxima leitura bem-sucedida. */
+const falha = ref<{ codigo: string; motivo: string } | null>(null)
+
+/** F5.3 (RNF03): tempo do Enter do leitor até a linha aparecer na tela. */
+const ultimoTempoMs = ref<number | null>(null)
+const medicoes: number[] = []
+;(window as unknown as { __medicoesBancada: number[] }).__medicoesBancada = medicoes
 
 const modo = ref<Modo>('ENTRADA')
 const quantidade = ref(1)
@@ -49,7 +63,35 @@ const sessao = ref<RegistroSessao[]>([])
 // Leituras em sequência rápida são processadas em ordem, uma de cada vez
 let fila: Promise<void> = Promise.resolve()
 
-onMounted(focarLeitor)
+/**
+ * F4.1: o campo do leitor recupera o foco sozinho quando ninguém está digitando em outro
+ * lugar (depois de toasts, cliques em área vazia, troca de janela...). O leitor HID
+ * "digita" onde estiver o foco: sem isso, um bip se perderia.
+ */
+function editandoOutroCampo() {
+  const el = document.activeElement
+  return (
+    el instanceof HTMLElement &&
+    el !== campoLeitor.value &&
+    el !== document.body &&
+    el.matches('input, select, textarea, button, a, [contenteditable]')
+  )
+}
+function garantirFoco() {
+  if (!pendente.value && !editandoOutroCampo() && document.activeElement !== campoLeitor.value) {
+    campoLeitor.value?.focus()
+  }
+}
+let vigia: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  focarLeitor()
+  vigia = setInterval(garantirFoco, 400)
+  window.addEventListener('focus', garantirFoco)
+})
+onUnmounted(() => {
+  clearInterval(vigia)
+  window.removeEventListener('focus', garantirFoco)
+})
 
 function focarLeitor() {
   nextTick(() => campoLeitor.value?.focus())
@@ -57,16 +99,21 @@ function focarLeitor() {
 
 /** O leitor HID "digita" o código e envia Enter. */
 function aoLer() {
+  const inicio = performance.now()
   const lido = normalizarCodigo(codigo.value)
   codigo.value = ''
   if (!lido) return
+  if (lido === ultimaLeitura.codigo && inicio - ultimaLeitura.em < JANELA_DUPLICADO_MS) return
+  ultimaLeitura = { codigo: lido, em: inicio }
+
   const leitura: Leitura = { modo: modo.value, quantidade: Math.max(1, Math.floor(quantidade.value || 1)) }
   quantidade.value = 1
-  fila = fila.then(() => processar(lido, leitura))
+  fila = fila.then(() => processar(lido, leitura, inicio))
 }
 
-async function processar(lido: string, leitura: Leitura) {
+async function processar(lido: string, leitura: Leitura, inicio: number) {
   if (!codigoValido(lido)) {
+    falha.value = { codigo: lido, motivo: 'código inválido (esperado de 8 a 14 dígitos)' }
     toast.erro(`Código "${lido}" inválido. Esperado de 8 a 14 dígitos.`)
     return
   }
@@ -74,15 +121,27 @@ async function processar(lido: string, leitura: Leitura) {
   try {
     const produto = await produtoService.buscarPorCodigo(lido)
     await registrar(produto, leitura)
+    falha.value = null
+    await nextTick()
+    medir(inicio)
   } catch (e) {
     if (e instanceof ApiError && e.naoEncontrado) {
+      falha.value = null
       await tratarNaoEncontrado(lido, leitura)
-    } else {
-      toast.erro(mensagemDeErro(e))
+    } else if (!(e instanceof ApiError && e.naoAutenticado)) {
+      // Nenhuma falha silenciosa: sem internet, timeout ou erro do servidor
+      falha.value = { codigo: lido, motivo: mensagemDeErro(e) }
+      toast.erro(`Não registrado — leia novamente. ${mensagemDeErro(e)}`)
     }
   } finally {
     processando.value = false
   }
+}
+
+function medir(inicio: number) {
+  const ms = Math.round(performance.now() - inicio)
+  ultimoTempoMs.value = ms
+  medicoes.push(ms)
 }
 
 /** RN09: código de produto excluído oferece reativação, não novo cadastro. */
@@ -225,7 +284,14 @@ function trocarModo(m: Modo) {
         <template v-else-if="leitorAtivo">● Leitor pronto · próxima leitura: {{ modo === 'ENTRADA' ? 'entrada' : 'saída' }} de {{ quantidade || 1 }}</template>
         <template v-else>○ Clique aqui para ativar o leitor</template>
       </p>
-      <p class="small muted">A quantidade volta para 1 após cada leitura. Leu errado? Faça um ajuste em Administração.</p>
+      <p v-if="falha" class="alert alert-danger falha" role="alert">
+        <strong>Não registrado — leia novamente.</strong>
+        Código <code>{{ falha.codigo }}</code>: {{ falha.motivo }}
+      </p>
+      <p class="small muted">
+        A quantidade volta para 1 após cada leitura. Leu errado? Registre um ajuste.
+        <span v-if="ultimoTempoMs !== null" class="tempo">Última leitura: {{ ultimoTempoMs }} ms</span>
+      </p>
     </section>
 
     <!-- Produto excluído: reativar (RN09). Painel, não modal: o Enter do próximo bip não confirma nada. -->
@@ -236,13 +302,24 @@ function trocarModo(m: Modo) {
         (<code>{{ pendente.produto.codigo_barras }}</code>) foi excluído em
         {{ formatarDataHora(pendente.produto.deleted_at) }}.
       </p>
-      <p class="muted">Reative para manter o histórico do mesmo item, em vez de cadastrar de novo.</p>
-      <div class="row">
-        <button type="button" class="btn btn-primary" :disabled="enviando" @click="reativarERegistrar">
-          Reativar e registrar {{ pendente.modo === 'ENTRADA' ? 'entrada' : 'saída' }} de {{ pendente.quantidade }}
-        </button>
-        <button type="button" class="btn" @click="descartar">Descartar leitura</button>
-      </div>
+      <template v-if="isAdmin">
+        <p class="muted">Reative para manter o histórico do mesmo item, em vez de cadastrar de novo.</p>
+        <div class="row">
+          <button type="button" class="btn btn-primary" :disabled="enviando" @click="reativarERegistrar">
+            Reativar e registrar {{ pendente.modo === 'ENTRADA' ? 'entrada' : 'saída' }} de {{ pendente.quantidade }}
+          </button>
+          <button type="button" class="btn" @click="descartar">Descartar leitura</button>
+        </div>
+      </template>
+      <template v-else>
+        <p class="alert alert-warn">
+          Só o voluntário chefe pode reativar produtos. Separe a embalagem e avise-o; a leitura não foi
+          registrada.
+        </p>
+        <div>
+          <button type="button" class="btn" @click="descartar">Entendi, descartar leitura</button>
+        </div>
+      </template>
     </section>
 
     <section v-else-if="pendente?.tipo === 'cadastro'" :key="pendente.codigo" class="card pendente">
@@ -312,7 +389,7 @@ function trocarModo(m: Modo) {
   padding: 16px 12px;
   font: inherit;
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: var(--radius);
   border: 2px solid var(--border);
   background: var(--surface);
@@ -363,6 +440,13 @@ function trocarModo(m: Modo) {
 .status.ativo {
   color: var(--ok);
   background: var(--ok-bg);
+}
+.falha {
+  font-size: 1.0625rem;
+}
+.tempo {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
 }
 .pendente {
   display: grid;

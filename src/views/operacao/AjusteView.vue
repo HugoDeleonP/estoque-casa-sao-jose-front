@@ -157,6 +157,7 @@ async function registrar() {
               <td>{{ m.produto_nome }}</td>
               <td class="num">{{ formatarDelta(m.quantidade) }}</td>
               <td class="muted">{{ m.observacao }}</td>
+              <td class="muted">{{ m.usuario_nome ?? '—' }}</td>
             </tr>
           </tbody>
         </table>
