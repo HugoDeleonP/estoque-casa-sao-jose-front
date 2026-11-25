@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import logoBranco from '@/assets/logo-branco.png'
+import SeletorTema from '@/components/SeletorTema.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { useAuth } from '@/composables/useAuth'
 import type { Area } from '@/router'
@@ -58,7 +59,10 @@ async function sair() {
           <strong>{{ auth.usuario.value?.nome }}</strong>
           <small>{{ auth.isAdmin.value ? 'Voluntário chefe (ADMIN)' : 'Voluntário (COMUM)' }}</small>
         </p>
-        <button type="button" class="sair" @click="sair">Sair</button>
+        <div class="botoes-usuario">
+          <button type="button" class="sair" @click="sair">Sair</button>
+          <SeletorTema class="tema" />
+        </div>
       </div>
     </aside>
 
@@ -168,6 +172,18 @@ nav {
   background: transparent;
   color: var(--header-text);
   cursor: pointer;
+}
+.botoes-usuario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tema {
+  color: var(--header-text);
+  border-color: rgb(255 255 255 / 0.5);
+}
+.tema:focus-visible {
+  outline-color: #ffffff;
 }
 .sair:hover {
   background: var(--header-hover);

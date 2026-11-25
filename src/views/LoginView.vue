@@ -3,13 +3,16 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import logoBranco from '@/assets/logo-branco.png'
 import logoRoxo from '@/assets/logo-roxo.png'
+import SeletorTema from '@/components/SeletorTema.vue'
 import { useAuth } from '@/composables/useAuth'
+import { useTema } from '@/composables/useTema'
 import { destinoSeguro } from '@/router'
 import { mensagemDeErro } from '@/utils/erros'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
+const { escuro } = useTema()
 
 const email = ref('')
 const senha = ref('')
@@ -42,11 +45,9 @@ async function entrar() {
 
 <template>
   <main class="login">
+    <SeletorTema class="tema" />
     <form class="card" novalidate @submit.prevent="entrar">
-      <picture class="logo">
-        <source :srcset="logoBranco" media="(prefers-color-scheme: dark)" />
-        <img :src="logoRoxo" alt="Hospital São José" width="236" height="80" />
-      </picture>
+      <img :src="escuro ? logoBranco : logoRoxo" alt="Hospital São José" class="logo" width="236" height="80" />
       <div>
         <h1>Estoque de doações</h1>
         <p class="muted">Casa São José</p>
@@ -86,11 +87,15 @@ async function entrar() {
   padding: 28px;
 }
 .logo {
-  justify-self: center;
-}
-.logo img {
   width: 236px;
   height: auto;
+  justify-self: center;
+}
+.tema {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  color: var(--text-2);
 }
 h1 {
   font-size: 1.25rem;

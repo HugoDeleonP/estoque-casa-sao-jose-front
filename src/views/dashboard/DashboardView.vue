@@ -12,6 +12,7 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import KpiCard from '@/components/KpiCard.vue'
 import SaldoBadge from '@/components/SaldoBadge.vue'
 import { useCategorias } from '@/composables/useCategorias'
+import { useTema } from '@/composables/useTema'
 import { dashboardService } from '@/services'
 import type { DashboardResumo, PendenciaSaldo, PontoSerie } from '@/types/api'
 import { mensagemDeErro } from '@/utils/erros'
@@ -85,21 +86,20 @@ async function carregar() {
 watch([categoriaId, inicio, fim], carregar)
 
 let timer: ReturnType<typeof setInterval> | undefined
-const esquemaEscuro = window.matchMedia('(prefers-color-scheme: dark)')
-const aoTrocarTema = () => {
+// Tema manual ou do sistema: recria o gráfico com as cores novas
+const { escuro } = useTema()
+watch(escuro, () => {
   grafico.value?.destroy()
   grafico.value = undefined
   desenhar()
-}
+})
 
 onMounted(() => {
   carregar()
   timer = setInterval(carregar, INTERVALO_MS)
-  esquemaEscuro.addEventListener('change', aoTrocarTema)
 })
 onUnmounted(() => {
   clearInterval(timer)
-  esquemaEscuro.removeEventListener('change', aoTrocarTema)
   grafico.value?.destroy()
 })
 
