@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SaldoBadge from '@/components/SaldoBadge.vue'
+import { useAuth } from '@/composables/useAuth'
 import { useCategorias } from '@/composables/useCategorias'
 import { produtoService } from '@/services'
 import type { Produto } from '@/types/api'
 import { mensagemDeErro } from '@/utils/erros'
-import { formatarNumero } from '@/utils/format'
+import { formatarConteudo, formatarNumero } from '@/utils/format'
 
 const { categorias } = useCategorias()
+const { isAdmin } = useAuth()
 
 const produtos = ref<Produto[]>([])
 const carregando = ref(true)
@@ -50,7 +52,7 @@ const totalNegativos = computed(() => produtos.value.filter((p) => p.saldo < 0).
     <header class="page-header">
       <div>
         <h1>Catálogo</h1>
-        <p>{{ formatarNumero(produtos.length) }} produtos ativos · saldo em embalagens</p>
+        <p>{{ formatarNumero(produtos.length) }} produtos ativos · saldo em embalagens (itens)</p>
       </div>
       <RouterLink :to="{ name: 'produto-novo' }" class="btn btn-primary">+ Cadastrar produto</RouterLink>
     </header>
@@ -83,7 +85,7 @@ const totalNegativos = computed(() => produtos.value.filter((p) => p.saldo < 0).
           <tr>
             <th>Código</th>
             <th>Produto</th>
-            <th>Unidade</th>
+            <th>Conteúdo</th>
             <th>Categoria</th>
             <th class="num">Saldo</th>
             <th><span class="sr">Ações</span></th>
@@ -102,7 +104,7 @@ const totalNegativos = computed(() => produtos.value.filter((p) => p.saldo < 0).
               <strong>{{ p.nome }}</strong>
               <span v-if="p.marca" class="muted"> · {{ p.marca }}</span>
             </td>
-            <td class="muted">{{ p.unidade ?? '—' }}</td>
+            <td class="num conteudo">{{ formatarConteudo(p) }}</td>
             <td>{{ p.categoria.nome }}</td>
             <td class="num"><SaldoBadge :saldo="p.saldo" /></td>
             <td>
@@ -110,7 +112,11 @@ const totalNegativos = computed(() => produtos.value.filter((p) => p.saldo < 0).
                 <RouterLink :to="{ name: 'movimentacoes', query: { produto_id: p.id } }" class="btn btn-sm btn-link">
                   Histórico
                 </RouterLink>
-                <RouterLink :to="{ name: 'produto-editar', params: { id: p.id } }" class="btn btn-sm">
+                <RouterLink
+                  v-if="isAdmin"
+                  :to="{ name: 'produto-editar', params: { id: p.id } }"
+                  class="btn btn-sm"
+                >
                   Editar
                 </RouterLink>
               </div>
@@ -123,6 +129,9 @@ const totalNegativos = computed(() => produtos.value.filter((p) => p.saldo < 0).
 </template>
 
 <style scoped>
+.conteudo {
+  text-align: left;
+}
 .filtros {
   display: grid;
   grid-template-columns: 2fr 1fr auto;

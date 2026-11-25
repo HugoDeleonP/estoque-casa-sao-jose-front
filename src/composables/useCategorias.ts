@@ -13,9 +13,9 @@ export function useCategorias() {
       .then((lista) => {
         categorias.value = lista
       })
-      .catch((e) => {
+      .catch(() => {
+        // Sem sessão ainda (tela de login) ou sem rede: tenta de novo no próximo uso
         carregando = null
-        throw e
       })
   }
   return { categorias, pronto: carregando }

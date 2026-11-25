@@ -1,4 +1,7 @@
+export { authService } from './authService'
+export { usuarioService } from './usuarioService'
 export { categoriaService } from './categoriaService'
+export { unidadeService } from './unidadeService'
 export { produtoService } from './produtoService'
 export { movimentacaoService } from './movimentacaoService'
 export { dashboardService } from './dashboardService'

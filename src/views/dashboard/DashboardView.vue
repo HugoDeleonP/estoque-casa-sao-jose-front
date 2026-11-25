@@ -12,10 +12,11 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import KpiCard from '@/components/KpiCard.vue'
 import SaldoBadge from '@/components/SaldoBadge.vue'
 import { useCategorias } from '@/composables/useCategorias'
+import { useTema } from '@/composables/useTema'
 import { dashboardService } from '@/services'
 import type { DashboardResumo, PendenciaSaldo, PontoSerie } from '@/types/api'
 import { mensagemDeErro } from '@/utils/erros'
-import { formatarHora, formatarNumero } from '@/utils/format'
+import { diaLocal, formatarHora, formatarMedida, formatarNumero } from '@/utils/format'
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
 
@@ -25,7 +26,27 @@ const PERIODOS = [7, 30, 90]
 
 const { categorias } = useCategorias()
 const categoriaId = ref<number | ''>('')
-const dias = ref(30)
+/** Preset em dias ou 'outro' (datas escolhidas). Padrão D14: últimos 30 dias. */
+const dias = ref<number | 'outro'>(30)
+
+const hoje = () => diaLocal(new Date())
+function menosDias(iso: string, n: number) {
+  const d = new Date(`${iso}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+const inicio = ref(menosDias(hoje(), 29))
+const fim = ref(hoje())
+
+function escolherPreset(n: number) {
+  dias.value = n
+  fim.value = hoje()
+  inicio.value = menosDias(fim.value, n - 1)
+}
+
+const rotuloPeriodo = computed(() =>
+  dias.value === 'outro' ? `de ${rotuloDia(inicio.value)} a ${rotuloDia(fim.value)}` : `últimos ${dias.value} dias`,
+)
 
 const resumo = ref<DashboardResumo | null>(null)
 const pendencias = ref<PendenciaSaldo[]>([])
@@ -38,12 +59,18 @@ const canvas = ref<HTMLCanvasElement>()
 const grafico = shallowRef<Chart<'bar'>>()
 
 async function carregar() {
-  const filtro = { categoria_id: categoriaId.value || undefined, dias: dias.value }
+  if (!inicio.value || !fim.value || inicio.value > fim.value) {
+    erro.value = 'Escolha uma data inicial anterior ou igual à final'
+    return
+  }
+  // Nos presets, "hoje" anda junto com o relógio (painel aberto o dia todo)
+  if (dias.value !== 'outro' && fim.value !== hoje()) escolherPreset(dias.value)
+  const filtro = { categoria_id: categoriaId.value || undefined, inicio: inicio.value, fim: fim.value }
   try {
     const [r, p, s] = await Promise.all([
       dashboardService.resumo(filtro),
       dashboardService.pendencias(filtro.categoria_id),
-      dashboardService.serie(filtro),
+      dashboardService.series(filtro),
     ])
     resumo.value = r
     pendencias.value = p
@@ -56,28 +83,27 @@ async function carregar() {
   }
 }
 
-watch([categoriaId, dias], carregar)
+watch([categoriaId, inicio, fim], carregar)
 
 let timer: ReturnType<typeof setInterval> | undefined
-const esquemaEscuro = window.matchMedia('(prefers-color-scheme: dark)')
-const aoTrocarTema = () => {
+// Tema manual ou do sistema: recria o gráfico com as cores novas
+const { escuro } = useTema()
+watch(escuro, () => {
   grafico.value?.destroy()
   grafico.value = undefined
   desenhar()
-}
+})
 
 onMounted(() => {
   carregar()
   timer = setInterval(carregar, INTERVALO_MS)
-  esquemaEscuro.addEventListener('change', aoTrocarTema)
 })
 onUnmounted(() => {
   clearInterval(timer)
-  esquemaEscuro.removeEventListener('change', aoTrocarTema)
   grafico.value?.destroy()
 })
 
-const rotuloDia = (iso: string) => {
+function rotuloDia(iso: string) {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
 }
@@ -123,7 +149,7 @@ function desenhar() {
           borderWidth: 1,
           padding: 10,
           boxPadding: 4,
-          callbacks: { label: (c) => ` ${c.dataset.label}: ${formatarNumero(c.parsed.y ?? 0)} embalagens` },
+          callbacks: { label: (c) => ` ${c.dataset.label}: ${formatarNumero(c.parsed.y ?? 0)} itens/embalagens` },
         },
       },
       scales: {
@@ -156,62 +182,90 @@ const totaisSerie = computed(() => ({
       <div>
         <h1>Indicadores</h1>
         <p>
-          Quantidades em itens/embalagens. Ajustes não entram em entradas e saídas.
+          Quantidades em itens/embalagens; peso e volume calculados pelo conteúdo de cada embalagem.
+          Ajustes não entram em entradas e saídas.
           <span v-if="atualizadoEm">Atualizado às {{ atualizadoEm }}.</span>
         </p>
       </div>
-      <div class="filtros">
-        <label class="field">
-          <span>Categoria</span>
-          <select v-model="categoriaId">
-            <option value="">Todas</option>
-            <option v-for="c in categorias" :key="c.id" :value="c.id">{{ c.nome }}</option>
-          </select>
-        </label>
-        <div class="field">
-          <span>Período</span>
-          <div class="segmentado" role="radiogroup" aria-label="Período">
-            <button
-              v-for="p in PERIODOS"
-              :key="p"
-              type="button"
-              role="radio"
-              :aria-checked="dias === p"
-              @click="dias = p"
-            >
-              {{ p }} dias
-            </button>
-          </div>
-        </div>
-      </div>
     </header>
 
-    <p v-if="erro" class="alert alert-danger">
-      {{ erro }}
-      <span class="small">(As rotas /api/dashboard/* ainda não existem no backend; use o modo mock.)</span>
-    </p>
+    <div class="card filtros">
+      <label class="field">
+        <span>Categoria</span>
+        <select v-model="categoriaId">
+          <option value="">Todas</option>
+          <option v-for="c in categorias" :key="c.id" :value="c.id">{{ c.nome }}</option>
+        </select>
+      </label>
+      <div class="field">
+        <span>Período</span>
+        <div class="segmentado" role="radiogroup" aria-label="Período">
+          <button
+            v-for="p in PERIODOS"
+            :key="p"
+            type="button"
+            role="radio"
+            :aria-checked="dias === p"
+            @click="escolherPreset(p)"
+          >
+            {{ p }} dias
+          </button>
+          <button type="button" role="radio" :aria-checked="dias === 'outro'" @click="dias = 'outro'">
+            Outro
+          </button>
+        </div>
+      </div>
+      <template v-if="dias === 'outro'">
+        <label class="field">
+          <span>De</span>
+          <input v-model="inicio" type="date" :max="fim" />
+        </label>
+        <label class="field">
+          <span>Até</span>
+          <input v-model="fim" type="date" :min="inicio" :max="hoje()" />
+        </label>
+      </template>
+    </div>
 
-    <section v-if="resumo" class="kpis">
+    <p v-if="erro" class="alert alert-danger">{{ erro }}</p>
+
+    <section v-if="resumo" class="kpis" aria-label="Indicadores principais">
       <KpiCard
         rotulo="Saldo em estoque"
         :valor="formatarNumero(resumo.saldo_total)"
-        :detalhe="`${resumo.total_produtos} produtos · ${resumo.produtos_saldo_negativo} com pendência`"
+        unidade="itens/embalagens"
+        :detalhe="`${formatarNumero(resumo.total_produtos)} ${resumo.total_produtos === 1 ? 'produto' : 'produtos'} · ${resumo.produtos_saldo_negativo} com pendência`"
+        :destaque="resumo.produtos_saldo_negativo > 0 ? 'aviso' : undefined"
       />
       <KpiCard
         rotulo="Entradas (doações)"
         :valor="formatarNumero(resumo.total_entradas)"
-        :detalhe="`últimos ${dias} dias`"
+        unidade="itens/embalagens"
+        :detalhe="rotuloPeriodo"
       />
       <KpiCard
         rotulo="Saídas (entregas)"
         :valor="formatarNumero(resumo.total_saidas)"
-        :detalhe="`últimos ${dias} dias`"
+        unidade="itens/embalagens"
+        :detalhe="rotuloPeriodo"
+      />
+      <KpiCard
+        rotulo="Peso em estoque"
+        :valor="formatarMedida(resumo.estoque_grandeza.massa_kg)"
+        unidade="kg"
+        :detalhe="`+${formatarMedida(resumo.entradas_grandeza.massa_kg)} kg doados · −${formatarMedida(resumo.saidas_grandeza.massa_kg)} kg entregues`"
+      />
+      <KpiCard
+        rotulo="Volume em estoque"
+        :valor="formatarMedida(resumo.estoque_grandeza.volume_l)"
+        unidade="L"
+        :detalhe="`+${formatarMedida(resumo.entradas_grandeza.volume_l)} L doados · −${formatarMedida(resumo.saidas_grandeza.volume_l)} L entregues`"
       />
       <KpiCard
         rotulo="Produtos com saldo negativo"
         :valor="formatarNumero(resumo.produtos_saldo_negativo)"
         detalhe="entradas não registradas"
-        :destaque="resumo.produtos_saldo_negativo > 0 ? 'perigo' : undefined"
+        :destaque="resumo.produtos_saldo_negativo > 0 ? 'aviso' : undefined"
       />
     </section>
 
@@ -231,7 +285,7 @@ const totaisSerie = computed(() => ({
         <canvas
           ref="canvas"
           role="img"
-          :aria-label="`Entradas e saídas por dia, últimos ${dias} dias: ${totaisSerie.entradas} entradas e ${totaisSerie.saidas} saídas`"
+          :aria-label="`Entradas e saídas por dia, ${rotuloPeriodo}: ${totaisSerie.entradas} entradas e ${totaisSerie.saidas} saídas`"
         />
       </div>
 
@@ -280,7 +334,10 @@ const totaisSerie = computed(() => ({
               <td class="num"><SaldoBadge :saldo="p.saldo" /></td>
               <td>
                 <div class="acoes">
-                  <RouterLink :to="{ name: 'movimentacoes', query: { produto_id: p.produto_id } }" class="btn btn-sm btn-link">
+                  <RouterLink
+                    :to="{ name: 'movimentacoes', query: { produto_id: p.produto_id } }"
+                    class="btn btn-sm btn-link"
+                  >
                     Histórico
                   </RouterLink>
                   <RouterLink :to="{ name: 'ajuste', query: { produto_id: p.produto_id } }" class="btn btn-sm">
@@ -301,7 +358,7 @@ const totaisSerie = computed(() => ({
 .filtros {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 12px 16px;
   align-items: end;
 }
 .filtros select {
@@ -316,6 +373,7 @@ const totaisSerie = computed(() => ({
 .segmentado button {
   font: inherit;
   font-size: 0.875rem;
+  font-weight: 500;
   padding: 0 12px;
   min-height: 40px;
   border: none;
@@ -333,7 +391,7 @@ const totaisSerie = computed(() => ({
 }
 .kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 .grafico-topo {

@@ -3,12 +3,9 @@
  *
  * - `path` é relativo a `env.apiBaseUrl` (padrão `/api`).
  * - Segmentos `:nome` são substituídos por `params` em http.request().
- * - `pendente: true` marca rotas que o front já usa, mas o backend ainda não expõe.
- *   Funcionam no modo mock; com a API real, retornam 404 até serem implementadas.
  *
- * Separação por nível de permissão (decisão do MVP, seção 9.3 da modelagem):
- *   operação (bancada, catálogo, cadastro) · administração (editar, excluir, ajustar) · dashboard.
- * Quando o RBAC entrar, basta proteger o grupo — os caminhos não mudam.
+ * Permissões (D7–D9): operação (todos os perfis) · administração e dashboard (ADMIN).
+ * O backend confere o perfil em toda rota; o front só esconde o que o perfil não usa.
  */
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -16,14 +13,27 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 export interface Endpoint {
   readonly method: HttpMethod
   readonly path: string
-  readonly pendente?: true
 }
 
-const rota = <M extends HttpMethod, P extends string>(method: M, path: P, pendente?: true) =>
-  ({ method, path, ...(pendente && { pendente }) }) as const satisfies Endpoint
+const rota = <M extends HttpMethod, P extends string>(method: M, path: P) =>
+  ({ method, path }) as const satisfies Endpoint
 
 export const API_ROUTES = {
   health: rota('GET', '/health'),
+
+  auth: {
+    login: rota('POST', '/auth/login'),
+    logout: rota('POST', '/auth/logout'),
+    me: rota('GET', '/auth/me'),
+  },
+
+  usuarios: {
+    listar: rota('GET', '/usuarios'),
+    criar: rota('POST', '/usuarios'),
+    alterarPerfil: rota('PUT', '/usuarios/:id/perfil'),
+    redefinirSenha: rota('PUT', '/usuarios/:id/senha'),
+    desativar: rota('DELETE', '/usuarios/:id'),
+  },
 
   categorias: {
     listar: rota('GET', '/categorias'),
@@ -31,6 +41,14 @@ export const API_ROUTES = {
     criar: rota('POST', '/categorias'),
     atualizar: rota('PUT', '/categorias/:id'),
     excluir: rota('DELETE', '/categorias/:id'),
+  },
+
+  unidades: {
+    listar: rota('GET', '/unidades'),
+    criar: rota('POST', '/unidades'),
+    /** Em uso: só o nome muda (409 para sigla/grandeza/fator). */
+    atualizar: rota('PUT', '/unidades/:id'),
+    excluir: rota('DELETE', '/unidades/:id'),
   },
 
   produtos: {
@@ -44,9 +62,9 @@ export const API_ROUTES = {
     /** Soft delete. 409 se saldo ≠ 0. */
     excluir: rota('DELETE', '/produtos/:id'),
     /** RF08/RN09: produto excluído com este código (para oferecer reativação). */
-    buscarExcluidoPorCodigo: rota('GET', '/produtos/excluidos/codigo/:codigo', true),
-    /** RF08/RN09: desfaz o soft delete. */
-    reativar: rota('POST', '/produtos/:id/reativar', true),
+    buscarExcluidoPorCodigo: rota('GET', '/produtos/excluidos/codigo/:codigo'),
+    /** RF08/RN09: desfaz o soft delete (ADMIN). */
+    reativar: rota('POST', '/produtos/:id/reativar'),
   },
 
   movimentacoes: {
@@ -58,11 +76,11 @@ export const API_ROUTES = {
   },
 
   dashboard: {
-    /** ?categoria_id= &dias= — KPIs do RF04. */
-    resumo: rota('GET', '/dashboard/resumo', true),
+    /** ?inicio= &fim= (AAAA-MM-DD) &categoria_id= */
+    resumo: rota('GET', '/dashboard/resumo'),
     /** ?categoria_id= — produtos com saldo negativo (RN07). */
-    pendencias: rota('GET', '/dashboard/pendencias', true),
-    /** ?categoria_id= &dias= — entradas e saídas por dia. */
-    serie: rota('GET', '/dashboard/serie', true),
+    pendencias: rota('GET', '/dashboard/pendencias'),
+    /** ?inicio= &fim= &categoria_id= — entradas e saídas por dia. */
+    series: rota('GET', '/dashboard/series'),
   },
 } as const

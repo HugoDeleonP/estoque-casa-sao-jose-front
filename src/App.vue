@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import logoBranco from '@/assets/logo-branco.png'
+import SeletorTema from '@/components/SeletorTema.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import { env } from '@/config'
+import { useAuth } from '@/composables/useAuth'
 import type { Area } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuth()
 
 const GRUPOS: { area: Area; titulo: string }[] = [
   { area: 'operacao', titulo: 'Operação' },
@@ -14,24 +17,32 @@ const GRUPOS: { area: Area; titulo: string }[] = [
   { area: 'dashboard', titulo: 'Dashboard' },
 ]
 
-const menu = computed(() =>
-  GRUPOS.map((g) => ({
+// COMUM não vê os menus de dashboard, unidades e usuários (F3.10)
+const menu = computed(() => {
+  const role = auth.usuario.value?.role
+  return GRUPOS.map((g) => ({
     ...g,
     // options.routes preserva a ordem de declaração (getRoutes() ordena por especificidade)
-    itens: router.options.routes.filter((r) => r.meta?.menu && r.meta.area === g.area),
-  })),
-)
+    itens: router.options.routes.filter(
+      (r) => r.meta?.menu && r.meta.area === g.area && (!r.meta.perfis || (role && r.meta.perfis.includes(role))),
+    ),
+  })).filter((g) => g.itens.length)
+})
+
+async function sair() {
+  await auth.sair()
+  router.replace({ name: 'login' })
+}
 </script>
 
 <template>
-  <div class="shell">
+  <RouterView v-if="route.meta.publica || !auth.usuario.value" :key="route.path" />
+
+  <div v-else class="shell">
     <aside class="sidebar">
-      <RouterLink to="/" class="marca">
-        <span class="logo" aria-hidden="true">CSJ</span>
-        <span>
-          <strong>Casa São José</strong>
-          <small>Estoque de doações</small>
-        </span>
+      <RouterLink to="/" class="marca" aria-label="Casa São José — início">
+        <img :src="logoBranco" alt="Hospital São José" width="177" height="60" />
+        <small>Estoque de doações · Casa São José</small>
       </RouterLink>
 
       <nav aria-label="Principal">
@@ -43,23 +54,30 @@ const menu = computed(() =>
         </div>
       </nav>
 
-      <p v-if="env.useMock" class="mock" title="VITE_API_MOCK=true">
-        Modo demonstração: dados fictícios, sem conexão com a API
-      </p>
+      <div class="usuario">
+        <p>
+          <strong>{{ auth.usuario.value?.nome }}</strong>
+          <small>{{ auth.isAdmin.value ? 'Voluntário chefe (ADMIN)' : 'Voluntário (COMUM)' }}</small>
+        </p>
+        <div class="botoes-usuario">
+          <button type="button" class="sair" @click="sair">Sair</button>
+          <SeletorTema class="tema" />
+        </div>
+      </div>
     </aside>
 
     <main class="conteudo">
       <RouterView :key="route.path" />
     </main>
-
-    <ToastContainer />
   </div>
+
+  <ToastContainer />
 </template>
 
 <style scoped>
 .shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 252px 1fr;
   min-height: 100vh;
 }
 .sidebar {
@@ -70,33 +88,25 @@ const menu = computed(() =>
   flex-direction: column;
   gap: 24px;
   padding: 20px 16px;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--header-bg);
+  color: var(--header-text);
   overflow-y: auto;
 }
 .marca {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+  display: grid;
+  gap: 8px;
   text-decoration: none;
-  color: var(--text);
+  color: var(--header-text);
+}
+.marca img {
+  width: 177px;
+  height: auto;
 }
 .marca small {
   display: block;
-  color: var(--text-3);
+  color: var(--header-text-2);
   font-size: 0.8125rem;
-}
-.logo {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
-  font-size: 0.8125rem;
-  flex-shrink: 0;
+  font-weight: 500;
 }
 nav {
   display: grid;
@@ -110,33 +120,73 @@ nav {
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
+  letter-spacing: var(--tracking);
+  color: var(--header-text-2);
   padding: 0 10px 4px;
 }
 .link {
-  padding: 8px 10px;
+  padding: 9px 10px;
   border-radius: var(--radius-sm);
-  color: var(--text-2);
+  color: var(--header-text);
   text-decoration: none;
   font-weight: 500;
+  font-size: 0.9375rem;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking);
 }
 .link:hover {
-  background: var(--surface-2);
-  color: var(--text);
+  background: var(--header-hover);
 }
 .link.router-link-active {
-  background: var(--accent-bg);
-  color: var(--accent);
+  background: #ffffff;
+  color: #482583;
+  font-weight: 600;
 }
-.mock {
+.link:focus-visible,
+.sair:focus-visible {
+  outline-color: #ffffff;
+}
+.usuario {
   margin-top: auto;
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.2);
+}
+.usuario small {
+  display: block;
+  color: var(--header-text-2);
   font-size: 0.8125rem;
-  padding: 10px;
+}
+.sair {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking);
+  justify-self: start;
+  min-height: 36px;
+  padding: 4px 14px;
   border-radius: var(--radius-sm);
-  background: var(--warn-bg);
-  color: var(--text);
-  border: 1px solid var(--warn);
+  border: 1px solid rgb(255 255 255 / 0.5);
+  background: transparent;
+  color: var(--header-text);
+  cursor: pointer;
+}
+.botoes-usuario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tema {
+  color: var(--header-text);
+  border-color: rgb(255 255 255 / 0.5);
+}
+.tema:focus-visible {
+  outline-color: #ffffff;
+}
+.sair:hover {
+  background: var(--header-hover);
 }
 .conteudo {
   padding: 28px 32px 48px;
@@ -152,8 +202,9 @@ nav {
     height: auto;
     gap: 12px;
     padding: 12px 16px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+  }
+  .marca img {
+    width: 130px;
   }
   nav {
     display: flex;
@@ -169,6 +220,11 @@ nav {
   }
   .link {
     white-space: nowrap;
+  }
+  .usuario {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding-top: 8px;
   }
   .conteudo {
     padding: 20px 16px 40px;

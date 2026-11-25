@@ -8,5 +8,6 @@ export const dashboardService = {
     request<DashboardResumo>(r.resumo, { query: { ...filtro } }),
   pendencias: (categoria_id?: number) =>
     request<PendenciaSaldo[]>(r.pendencias, { query: { categoria_id } }),
-  serie: (filtro: DashboardFiltro = {}) => request<PontoSerie[]>(r.serie, { query: { ...filtro } }),
+  series: (filtro: DashboardFiltro = {}) =>
+    request<PontoSerie[]>(r.series, { query: { ...filtro } }),
 }
