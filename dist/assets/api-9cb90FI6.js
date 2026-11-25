@@ -1,0 +1,1 @@
+var e=[`ADMIN`,`COMUM`],t=[`MASSA`,`VOLUME`,`CONTAGEM`],n=[`ENTRADA`,`SAIDA`,`AJUSTE`];export{e as n,n as r,t};

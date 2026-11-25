@@ -1,0 +1,1 @@
+import{S as e,l as t,nt as n,p as r,rt as i,t as a}from"./_plugin-vue_export-helper-N2IqL_gg.js";var o=a(r({__name:`TipoBadge`,props:{tipo:{}},setup(r){let a={ENTRADA:`↓ Entrada`,SAIDA:`↑ Saída`,AJUSTE:`± Ajuste`};return(o,s)=>(e(),t(`span`,{class:n([`tipo`,r.tipo.toLowerCase()])},i(a[r.tipo]),3))}}),[[`__scopeId`,`data-v-8556ed72`]]);export{o as t};

@@ -1,0 +1,1 @@
+import{N as e}from"./_plugin-vue_export-helper-N2IqL_gg.js";import{o as t}from"./index-CFll1yGa.js";var n=e([]),r=null;function i(){return r=t.listar().then(e=>{n.value=e}).catch(e=>{throw r=null,e}),r}function a(){return r||i().catch(()=>void 0),{unidades:n,pronto:r,recarregar:i}}export{a as t};
