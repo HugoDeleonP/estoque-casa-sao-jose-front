@@ -7,9 +7,16 @@
     <meta name="theme-color" content="#482583" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Estoque · Casa São José</title>
-    <script type="module" crossorigin src="/assets/index-CFll1yGa.js"></script>
+    <script>
+      try {
+        var t = localStorage.getItem('csj.tema')
+      } catch (e) {}
+      if (t !== 'claro' && t !== 'escuro') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'
+      document.documentElement.dataset.theme = t === 'escuro' ? 'dark' : 'light'
+    </script>
+    <script type="module" crossorigin src="/assets/index-DDzIhger.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-N2IqL_gg.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-T_HPyN_m.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BruFjjkQ.css">
   </head>
   <body>
     <div id="app"></div>

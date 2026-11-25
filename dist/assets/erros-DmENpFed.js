@@ -1,1 +1,0 @@
-import{l as e}from"./index-CFll1yGa.js";function t(t){return t instanceof e?t.campos.find(e=>!e.campo)?.mensagem.replace(/^Value error, /,``)??t.message:t instanceof Error?t.message:`Erro inesperado`}function n(t){return t instanceof e?Object.fromEntries(t.campos.filter(e=>e.campo).map(e=>[e.campo.split(`.`).pop(),e.mensagem])):{}}export{t as n,n as t};
