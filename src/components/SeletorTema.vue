@@ -5,7 +5,6 @@ import { useTema } from '@/composables/useTema'
 const { tema, alternar } = useTema()
 
 const ROTULO = {
-  automatico: { icone: '◐', texto: 'Automático' },
   claro: { icone: '☀', texto: 'Claro' },
   escuro: { icone: '☾', texto: 'Escuro' },
 } as const

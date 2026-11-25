@@ -1,34 +1,28 @@
 import { computed, ref } from 'vue'
 
-/** automatico = segue o sistema operacional (prefers-color-scheme). */
-export type Tema = 'automatico' | 'claro' | 'escuro'
+export type Tema = 'claro' | 'escuro'
 
 const CHAVE = 'csj.tema'
-const ORDEM: Tema[] = ['automatico', 'claro', 'escuro']
-const midiaEscura = window.matchMedia('(prefers-color-scheme: dark)')
 
-function lerSalvo(): Tema {
+/** Escolha salva; na primeira visita, o tema do sistema operacional. */
+function inicial(): Tema {
   try {
     const v = localStorage.getItem(CHAVE)
-    return ORDEM.includes(v as Tema) ? (v as Tema) : 'automatico'
+    if (v === 'claro' || v === 'escuro') return v
   } catch {
-    return 'automatico'
+    // armazenamento indisponível
   }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'
 }
 
 // Estado global: um tema para o app inteiro
-const tema = ref<Tema>(lerSalvo())
-const sistemaEscuro = ref(midiaEscura.matches)
-midiaEscura.addEventListener('change', (e) => (sistemaEscuro.value = e.matches))
-
-const escuro = computed(() => tema.value === 'escuro' || (tema.value === 'automatico' && sistemaEscuro.value))
+const tema = ref<Tema>(inicial())
 
 /** Os tokens de cor (style.css) reagem a data-theme="light" | "dark" no <html>. */
 function aplicar() {
-  const raiz = document.documentElement
-  if (tema.value === 'automatico') delete raiz.dataset.theme
-  else raiz.dataset.theme = tema.value === 'escuro' ? 'dark' : 'light'
+  document.documentElement.dataset.theme = tema.value === 'escuro' ? 'dark' : 'light'
 }
+aplicar()
 
 function definir(novo: Tema) {
   tema.value = novo
@@ -43,9 +37,8 @@ function definir(novo: Tema) {
 export function useTema() {
   return {
     tema,
-    escuro,
+    escuro: computed(() => tema.value === 'escuro'),
     definir,
-    /** Automático → Claro → Escuro → Automático */
-    alternar: () => definir(ORDEM[(ORDEM.indexOf(tema.value) + 1) % ORDEM.length]!),
+    alternar: () => definir(tema.value === 'escuro' ? 'claro' : 'escuro'),
   }
 }
