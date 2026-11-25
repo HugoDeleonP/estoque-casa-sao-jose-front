@@ -1,24 +1,55 @@
 # Frontend — Estoque de Doações (Casa São José)
 
-Vue 3 + Vite + TypeScript, vue-router e Chart.js.
+Telas do sistema de gestão e rastreabilidade de doações da Casa São José: bancada com leitor
+óptico, catálogo, histórico, ajustes e, para o voluntário chefe, dashboard, unidades de
+medida e usuários.
 
-## Rodar
+Vue 3 + Vite + TypeScript, vue-router e Chart.js. API:
+[estoque-casa-sao-jose-backend](https://github.com/HugoDeleonP/estoque-casa-sao-jose-backend)
+— **a documentação completa (arquitetura, API, deploy, manual do usuário) está em
+[`docs/` do backend](https://github.com/HugoDeleonP/estoque-casa-sao-jose-backend/tree/main/docs).**
+
+## Rodar localmente
+
+Requer o backend rodando em `http://127.0.0.1:8000` (ver README do backend) e um usuário
+criado com `criar_admin`.
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173 — usa dados fictícios por padrão
-npm run build    # gera dist/, servido pelo FastAPI em produção
+npm ci
+npm run dev      # http://localhost:5173 — o Vite repassa /api para o backend (sem CORS)
+npm run build    # gera dist/ (servido pelo Caddy em produção)
 ```
 
 | Variável | Padrão | Para quê |
 | --- | --- | --- |
-| `VITE_API_MOCK` | `true` em dev, `false` no build | `true` = dados em memória (`src/mocks`), sem backend |
-| `VITE_API_BASE_URL` | `/api` | Prefixo das rotas |
-| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:8000` | Para onde o Vite repassa `/api` em dev (sem CORS) |
+| `VITE_API_BASE_URL` | `/api` | Prefixo das rotas; relativo de propósito (mesmo domínio = cookie de sessão) |
+| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:8000` | Para onde o Vite repassa `/api` em dev |
 | `VITE_API_TIMEOUT_MS` | `8000` | Tempo máximo por requisição |
 
-**Conectar à API real:** crie `.env.development.local` com `VITE_API_MOCK=false` e suba o backend
-(`uv run estoque-doacoes`). Nenhum código muda.
+Não há mais modo de dados fictícios: todas as telas usam a API real.
+
+## Testar
+
+```bash
+npx vue-tsc -b                         # tipos
+npm run build && npm run test:e2e      # ponta a ponta (Playwright)
+```
+
+O teste ponta a ponta sobe a API real (repositório do backend ao lado, `../estoque-casa-sao-jose-backend`)
+num banco temporário e simula o leitor: digita 13 dígitos rapidamente + `Enter`. Cobre login →
+bip de produto novo → cadastro → entrada → bip duplo descartado → dashboard, o bloqueio do
+perfil COMUM e a mensagem de falha de rede. Também mede o tempo bip → tela (RNF03). Na
+primeira vez: `npx playwright install --with-deps chromium`.
+
+## Implantação
+
+O build pronto é publicado na branch **`deploy`** deste repositório (só o `dist/`); a EC2
+clona essa branch e não precisa de Node. Para publicar uma versão nova:
+
+```bash
+npm ci && npm run build
+# publicar dist/ na branch deploy (ver docs/deploy-aws.md no backend)
+```
 
 ## Estrutura
 
@@ -26,30 +57,27 @@ npm run build    # gera dist/, servido pelo FastAPI em produção
 src/
 ├── config/          # ← ponto único de integração com a API
 │   ├── env.ts         variáveis de ambiente tipadas
-│   ├── api-routes.ts  TODAS as rotas (método + caminho); `pendente: true` = ainda não existe no backend
-│   └── http.ts        fetch + timeout + ApiError (formato ErroResposta do backend)
+│   ├── api-routes.ts  TODAS as rotas (método + caminho)
+│   └── http.ts        fetch + timeout + ApiError; 401 → login e volta à tela
 ├── types/api.ts     # espelho dos DTOs do backend
-├── services/        # uma função por rota: produtoService.buscarPorCodigo(...)
-├── mocks/           # mesmas rotas e regras (404/409/422) em memória
-├── router/          # telas, com meta.area = operacao | admin | dashboard (pronto para RBAC)
-├── composables/     # useToast (alertas não bloqueantes), useCategorias
+├── services/        # uma função por rota
+├── router/          # rotas com meta.perfis; guarda de login e de perfil
+├── composables/     # useAuth, useCategorias, useUnidades, useToast
 ├── components/      # ProdutoForm, SaldoBadge, TipoBadge, KpiCard, ToastContainer
+├── assets/          # logos (roxo e branco)
 └── views/
-    ├── operacao/    Bancada (leitor), Catálogo, Cadastrar produto, Histórico
-    ├── admin/       Ajuste de estoque, Editar/Excluir produto
-    └── dashboard/   Indicadores (KPIs, gráfico, pendências de saldo negativo)
+    ├── LoginView.vue
+    ├── operacao/    Bancada (leitor), Catálogo, Cadastrar produto, Histórico, Ajuste
+    ├── admin/       Editar produto, Unidades de medida, Usuários (ADMIN)
+    └── dashboard/   Indicadores (ADMIN)
 ```
 
-Fluxo: **view → service → `request(API_ROUTES.x.y)` → API ou mock**. Uma view nunca escreve um caminho HTTP.
+Fluxo: **view → service → `request(API_ROUTES.x.y)` → API**. Uma view nunca escreve um caminho HTTP.
+O backend confere o perfil em toda rota; o front só esconde o que o perfil não usa.
 
-## Rotas que o front já usa e o backend ainda não tem
+## Identidade visual
 
-| Rota | Uso |
-| --- | --- |
-| `GET /api/produtos/excluidos/codigo/{codigo}` | Bancada: detectar produto excluído e oferecer reativação (RN09) |
-| `POST /api/produtos/{id}/reativar` | Desfazer o soft delete (RF08) |
-| `GET /api/dashboard/resumo?categoria_id=&dias=` | KPIs (RF04) |
-| `GET /api/dashboard/pendencias?categoria_id=` | Produtos com saldo negativo (RN07) |
-| `GET /api/dashboard/serie?categoria_id=&dias=` | Entradas/saídas por dia |
-
-Contratos de resposta em `src/types/api.ts`; a implementação de referência está em `src/mocks/adapter.ts`.
+Roxo `#482583` (amostrado do logo), lilás `#E9E2F3` em fundos, magenta só em destaques e na
+série "saídas". Alertas usam verde/âmbar/vermelho, independentes da marca. Montserrat
+empacotada (sem CDN). Caixa alta só em títulos, menus, rótulos e botões. Tokens em
+`src/style.css`. Logo atual: Hospital São José (pendente: logo próprio da Casa, se existir).
